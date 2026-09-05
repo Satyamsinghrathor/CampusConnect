@@ -1,6 +1,9 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+
+    //    serializable
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
@@ -52,4 +55,12 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+//    icons
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
+
+    // For Navigation
+    implementation("androidx.navigation:navigation-compose:2.10.0")
+    // Serialization
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 }
