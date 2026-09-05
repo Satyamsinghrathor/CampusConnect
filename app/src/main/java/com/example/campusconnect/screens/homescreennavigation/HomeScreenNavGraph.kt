@@ -11,7 +11,11 @@ import com.example.campusconnect.screens.noticescreen.NoticeScreen
 import com.example.campusconnect.screens.profilescreen.ProfileScreen
 
 @Composable
-fun HomeScreenNavGraph(navController: NavHostController) {
+fun HomeScreenNavGraph(
+    navController: NavHostController,
+    darkTheme: Boolean,
+    onToggleTheme: () -> Unit
+) {
 
     NavHost(
         navController = navController,
@@ -27,7 +31,11 @@ fun HomeScreenNavGraph(navController: NavHostController) {
         }
 
         composable<NavRoutes.Profile> {
-            ProfileScreen(navController)
+            ProfileScreen(
+                navController = navController,
+                darkTheme = darkTheme,
+                onToggleTheme = onToggleTheme
+            )
         }
 
         composable<NavRoutes.Notice> {

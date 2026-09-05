@@ -7,7 +7,10 @@ import androidx.navigation.compose.rememberNavController
 import com.example.campusconnect.screens.homescreen.HomeScreen
 
 @Composable
-fun NavGraph() {
+fun NavGraph(
+    darkTheme: Boolean,
+    onToggleTheme: () -> Unit
+) {
 
     val navController = rememberNavController()
 
@@ -17,7 +20,10 @@ fun NavGraph() {
     ) {
 
         composable<NavRoutes.Home> {
-            HomeScreen()
+            HomeScreen(
+                darkTheme = darkTheme,
+                onToggleTheme = onToggleTheme
+            )
         }
     }
 }

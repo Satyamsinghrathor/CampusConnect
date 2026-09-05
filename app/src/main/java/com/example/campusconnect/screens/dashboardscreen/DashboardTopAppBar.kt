@@ -6,8 +6,10 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
@@ -15,23 +17,27 @@ import androidx.compose.ui.Modifier
 @Composable
 fun DashboardTopAppBar(modifier: Modifier = Modifier) {
 
-
     TopAppBar(
+        modifier = modifier,
         title = { Text("Campus Connect") },
         navigationIcon = {
-            IconButton(onClick = { /* do something */ }) {
+            IconButton(onClick = { /* TODO: open navigation drawer */ }) {
                 Icon(
                     imageVector = Icons.Filled.Menu,
-                    contentDescription = "Localized description"
+                    contentDescription = "Open menu"
                 )
             }
         },
-
         actions = {
-            IconButton(onClick = {}) {
-                Icon(imageVector = Icons.Default.Notifications, contentDescription = "icon button")
+            IconButton(onClick = { /* TODO: open notifications */ }) {
+                Icon(imageVector = Icons.Default.Notifications, contentDescription = "Notifications")
             }
-        }
-
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+            actionIconContentColor = MaterialTheme.colorScheme.onSurface
+        )
     )
 }
