@@ -40,15 +40,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.example.campusconnect.navigation.NavRoutes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
+    rootNavController: NavHostController,
     navController: NavHostController,
     darkTheme: Boolean,
-    onToggleTheme: () -> Unit
+    onToggleTheme: () -> Unit,
+    viewModel: LogoutViewModel = viewModel()
 ) {
+
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -129,7 +135,16 @@ fun ProfileScreen(
                         icon = Icons.Default.Logout,
                         label = "Log Out",
                         tint = MaterialTheme.colorScheme.error,
-                        onClick = { /* TODO: handle logout */ }
+                        onClick = {
+                            viewModel.logout()
+
+                            rootNavController.navigate(NavRoutes.Login) {
+                                popUpTo(0) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }
                     )
                 }
             }

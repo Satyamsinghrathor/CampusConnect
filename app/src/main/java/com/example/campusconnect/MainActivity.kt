@@ -23,10 +23,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-//            CampusConnectApp()
+            CampusConnectApp()
 //            TimetableScreen()
 //            AssignmentsScreen()
-            ResourcesScreen()
+//            ResourcesScreen()
         }
     }
 }

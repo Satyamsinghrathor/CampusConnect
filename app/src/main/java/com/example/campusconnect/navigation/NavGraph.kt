@@ -6,7 +6,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.campusconnect.screens.homescreen.HomeScreen
 import com.example.campusconnect.screens.loginsignupscreen.LoginScreen
-import com.example.campusconnect.ui.screens.register.SignUpScreen
+import com.example.campusconnect.screens.loginsignupscreen.RegisterScreen
 
 @Composable
 fun NavGraph(
@@ -22,43 +22,46 @@ fun NavGraph(
     ) {
 
 
-        composable< NavRoutes.Login> {
+        composable<NavRoutes.Login> {
 
             LoginScreen(
-                onLoginClick = { email, password ->
+                onLoginSuccess = {
                     navController.navigate(NavRoutes.Home) {
-                        popUpTo< NavRoutes.Login> {
+                        popUpTo<NavRoutes.Login> {
                             inclusive = true
                         }
                     }
                 },
-                onRegisterClick = {
+                onSignupClick = {
                     navController.navigate(NavRoutes.Register)
                 }
             )
         }
 
-        composable< NavRoutes.Register> {
-            SignUpScreen(
-                onRegisterClick = { name, email, password ->
+        composable<NavRoutes.Register> {
 
-                    // Registration logic here
-
+            RegisterScreen(
+                onRegisterSuccess = {
                     navController.navigate(NavRoutes.Home) {
-                        popUpTo< NavRoutes.Register> {
+                        popUpTo<NavRoutes.Register> {
                             inclusive = true
                         }
                     }
                 },
                 onLoginClick = {
-                    navController.navigate(NavRoutes.Login)
+                    navController.navigate(NavRoutes.Login) {
+                        popUpTo<NavRoutes.Register> {
+                            inclusive = true
+                        }
+                    }
                 }
             )
         }
         composable<NavRoutes.Home> {
             HomeScreen(
                 darkTheme = darkTheme,
-                onToggleTheme = onToggleTheme
+                onToggleTheme = onToggleTheme,
+                rootNavController = navController
             )
         }
     }

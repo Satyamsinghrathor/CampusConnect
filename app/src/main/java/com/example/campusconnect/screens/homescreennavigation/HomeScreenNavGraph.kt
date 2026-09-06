@@ -14,7 +14,8 @@ import com.example.campusconnect.screens.profilescreen.ProfileScreen
 fun HomeScreenNavGraph(
     navController: NavHostController,
     darkTheme: Boolean,
-    onToggleTheme: () -> Unit
+    onToggleTheme: () -> Unit,
+    rootNavController: NavHostController
 ) {
 
     NavHost(
@@ -34,7 +35,8 @@ fun HomeScreenNavGraph(
             ProfileScreen(
                 navController = navController,
                 darkTheme = darkTheme,
-                onToggleTheme = onToggleTheme
+                onToggleTheme = onToggleTheme,
+                rootNavController = rootNavController
             )
         }
 
