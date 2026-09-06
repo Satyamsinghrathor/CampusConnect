@@ -19,4 +19,10 @@ sealed class NavRoutes {
 
     @Serializable
     object Dashboard : NavRoutes()
+
+    @Serializable
+    object Login : NavRoutes()
+
+    @Serializable
+    object Register: NavRoutes()
 }
