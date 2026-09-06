@@ -12,6 +12,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.example.campusconnect.navigation.NavGraph
 import com.example.campusconnect.screens.assignmentscreen.AssignmentsScreen
+import com.example.campusconnect.screens.resourcescreen.ResourcesScreen
 import com.example.campusconnect.screens.timetablescreen.TimetableScreen
 import com.example.campusconnect.ui.theme.CampusConnectTheme
 
@@ -24,7 +25,8 @@ class MainActivity : ComponentActivity() {
         setContent {
 //            CampusConnectApp()
 //            TimetableScreen()
-            AssignmentsScreen()
+//            AssignmentsScreen()
+            ResourcesScreen()
         }
     }
 }
