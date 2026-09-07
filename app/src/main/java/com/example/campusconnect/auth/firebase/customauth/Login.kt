@@ -1,6 +1,7 @@
 package com.example.campusconnect.auth.firebase.customauth
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.tasks.await
 
 class Login {
@@ -20,6 +21,26 @@ class Login {
             Result.success(result.user?.uid ?: "")
 
         } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun loginWithGoogle(
+        idToken: String
+    ): Result<Unit> {
+
+        return try {
+
+            val credential = GoogleAuthProvider
+                .getCredential(idToken, null)
+
+            auth.signInWithCredential(credential)
+                .await()
+
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+
             Result.failure(e)
         }
     }

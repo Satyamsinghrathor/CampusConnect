@@ -61,4 +61,30 @@ class LoginViewModel : ViewModel() {
                 }
         }
     }
+
+    fun loginWithGoogle(idToken: String) {
+
+        viewModelScope.launch {
+
+            _uiState.value = _uiState.value.copy(
+                isLoading = true,
+                error = null
+            )
+
+            val result = login.loginWithGoogle(idToken)
+
+            result
+                .onSuccess {
+                    _uiState.value = LoginUiState(
+                        isLoggedIn = true
+                    )
+                }
+                .onFailure { exception ->
+                    _uiState.value = LoginUiState(
+                        isLoading = false,
+                        error = exception.message
+                    )
+                }
+        }
+    }
 }
