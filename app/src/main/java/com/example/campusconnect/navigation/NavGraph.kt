@@ -7,6 +7,8 @@ import androidx.navigation.compose.rememberNavController
 import com.example.campusconnect.screens.homescreen.HomeScreen
 import com.example.campusconnect.screens.loginsignupscreen.LoginScreen
 import com.example.campusconnect.screens.loginsignupscreen.RegisterScreen
+import com.example.campusconnect.screens.profilesetupscreen.ProfileGateScreen
+import com.example.campusconnect.screens.profilesetupscreen.ProfileSetupScreen
 
 @Composable
 fun NavGraph(
@@ -26,8 +28,8 @@ fun NavGraph(
 
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate(NavRoutes.Home) {
-                        popUpTo<NavRoutes.Login> {
+                    navController.navigate(NavRoutes.ProfileGate) {
+                        popUpTo(0) {
                             inclusive = true
                         }
                     }
@@ -42,8 +44,8 @@ fun NavGraph(
 
             RegisterScreen(
                 onRegisterSuccess = {
-                    navController.navigate(NavRoutes.Home) {
-                        popUpTo<NavRoutes.Register> {
+                    navController.navigate(NavRoutes.ProfileGate) {
+                        popUpTo(0) {
                             inclusive = true
                         }
                     }
@@ -57,6 +59,52 @@ fun NavGraph(
                 }
             )
         }
+
+        composable<NavRoutes.ProfileGate> {
+            ProfileGateScreen(
+                onProfileComplete = {
+                    navController.navigate(NavRoutes.Home) {
+                        popUpTo<NavRoutes.ProfileGate> {
+                            inclusive = true
+                        }
+                    }
+                },
+                onProfileMissing = {
+                    navController.navigate(NavRoutes.ProfileSetup) {
+                        popUpTo<NavRoutes.ProfileGate> {
+                            inclusive = true
+                        }
+                    }
+                },
+                onSignedOut = {
+                    navController.navigate(NavRoutes.Login) {
+                        popUpTo(0) {
+                            inclusive = true
+                        }
+                    }
+                }
+            )
+        }
+
+        composable<NavRoutes.ProfileSetup> {
+            ProfileSetupScreen(
+                onProfileSaved = {
+                    navController.navigate(NavRoutes.Home) {
+                        popUpTo<NavRoutes.ProfileSetup> {
+                            inclusive = true
+                        }
+                    }
+                },
+                onSignOut = {
+                    navController.navigate(NavRoutes.Login) {
+                        popUpTo(0) {
+                            inclusive = true
+                        }
+                    }
+                }
+            )
+        }
+
         composable<NavRoutes.Home> {
             HomeScreen(
                 darkTheme = darkTheme,

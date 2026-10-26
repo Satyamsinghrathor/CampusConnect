@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
@@ -86,6 +88,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.example.campusconnect.data.model.ProfileOptions
 import com.example.campusconnect.data.model.UserProfile
 import com.example.campusconnect.data.model.yearSemesterLabel
 import com.example.campusconnect.navigation.NavRoutes
@@ -157,6 +160,27 @@ fun ProfileScreen(
             return@Scaffold
         }
 
+        if (state.loadError != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(32.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = state.loadError ?: "",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = profileViewModel::load) { Text("Retry") }
+            }
+            return@Scaffold
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -166,10 +190,10 @@ fun ProfileScreen(
                 .padding(20.dp)
         ) {
             val profile = state.profile
-            val subtitle = listOf(profile.department, profile.yearSemesterLabel())
+            val subtitle = listOf(state.departmentName, profile.yearSemesterLabel())
                 .filter { it.isNotBlank() }
                 .joinToString(" · ")
-                .ifBlank { "Add your department and year" }
+                .ifBlank { "Student" }
 
             ProfileHeader(
                 name = profile.name.ifBlank { "Your name" },
@@ -195,15 +219,16 @@ fun ProfileScreen(
 
                 EditProfileForm(
                     draft = state.draft,
-                    nameError = state.nameError,
-                    phoneError = state.phoneError,
+                    collegeName = state.collegeName,
+                    departmentName = state.departmentName,
+                    errors = state.errors,
                     isSaving = state.isSaving,
                     onDraftChange = profileViewModel::updateDraft,
                     onSave = profileViewModel::saveProfile,
                     onCancel = profileViewModel::cancelEditing
                 )
             } else {
-                ProfileDetailsCard(profile)
+                ProfileDetailsCard(profile, state.collegeName, state.departmentName)
 
                 Spacer(Modifier.height(16.dp))
 
@@ -393,7 +418,11 @@ private fun ProfileHeader(
 }
 
 @Composable
-private fun ProfileDetailsCard(profile: UserProfile) {
+private fun ProfileDetailsCard(
+    profile: UserProfile,
+    collegeName: String,
+    departmentName: String
+) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
@@ -406,11 +435,17 @@ private fun ProfileDetailsCard(profile: UserProfile) {
             HorizontalDivider(color = divider)
             DetailRow(Icons.Default.Email, "Email", profile.email)
             HorizontalDivider(color = divider)
-            DetailRow(Icons.Default.AccountBox, "Student ID", profile.studentId)
+            DetailRow(Icons.Default.Home, "College", collegeName)
             HorizontalDivider(color = divider)
-            DetailRow(Icons.Default.Home, "Department", profile.department)
+            DetailRow(Icons.Default.Info, "Department", departmentName)
+            HorizontalDivider(color = divider)
+            DetailRow(Icons.Default.AccountBox, "Roll number", profile.rollNumber)
+            HorizontalDivider(color = divider)
+            DetailRow(Icons.Default.DateRange, "Batch", profile.batch)
             HorizontalDivider(color = divider)
             DetailRow(Icons.Default.DateRange, "Year / Semester", profile.yearSemesterLabel())
+            HorizontalDivider(color = divider)
+            DetailRow(Icons.Default.Star, "Section", profile.section)
             HorizontalDivider(color = divider)
             DetailRow(Icons.Default.Phone, "Phone number", profile.phone)
         }
@@ -454,8 +489,9 @@ private fun DetailRow(icon: ImageVector, label: String, value: String) {
 @Composable
 private fun EditProfileForm(
     draft: UserProfile,
-    nameError: String?,
-    phoneError: String?,
+    collegeName: String,
+    departmentName: String,
+    errors: Map<EditField, String>,
     isSaving: Boolean,
     onDraftChange: ((UserProfile) -> UserProfile) -> Unit,
     onSave: () -> Unit,
@@ -466,10 +502,10 @@ private fun EditProfileForm(
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ProfileTextField(
             value = draft.name,
-            onValueChange = { v -> onDraftChange { it.copy(name = v) } },
+            onValueChange = { v -> onDraftChange { it.copy(name = v.take(60)) } },
             label = "Full name",
             icon = Icons.Default.Person,
-            error = nameError,
+            error = errors[EditField.Name],
             capitalization = KeyboardCapitalization.Words
         )
         ProfileTextField(
@@ -481,18 +517,41 @@ private fun EditProfileForm(
             supportingText = "Email comes from your account and can't be changed here"
         )
         ProfileTextField(
-            value = draft.studentId,
-            onValueChange = { v -> onDraftChange { it.copy(studentId = v) } },
-            label = "Student ID",
+            value = collegeName,
+            onValueChange = {},
+            label = "College",
+            icon = Icons.Default.Home,
+            enabled = false
+        )
+        ProfileTextField(
+            value = departmentName,
+            onValueChange = {},
+            label = "Department",
+            icon = Icons.Default.Info,
+            enabled = false,
+            supportingText = "College and department were set during registration"
+        )
+        ProfileTextField(
+            value = draft.rollNumber,
+            onValueChange = { v ->
+                val cleaned = v.uppercase().filter { c -> c.isLetterOrDigit() || c == '-' || c == '/' }.take(20)
+                onDraftChange { it.copy(rollNumber = cleaned) }
+            },
+            label = "Roll number",
             icon = Icons.Default.AccountBox,
+            error = errors[EditField.RollNumber],
             capitalization = KeyboardCapitalization.Characters
         )
         ProfileTextField(
-            value = draft.department,
-            onValueChange = { v -> onDraftChange { it.copy(department = v) } },
-            label = "Department",
-            icon = Icons.Default.Home,
-            capitalization = KeyboardCapitalization.Words
+            value = draft.batch,
+            onValueChange = { v ->
+                val cleaned = v.filter { c -> c.isDigit() || c == '-' }.take(9)
+                onDraftChange { it.copy(batch = cleaned) }
+            },
+            label = "Batch (e.g. 2023-2027)",
+            icon = Icons.Default.DateRange,
+            error = errors[EditField.Batch],
+            keyboardType = KeyboardType.Number
         )
 
         Text(
@@ -502,7 +561,7 @@ private fun EditProfileForm(
             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
         )
         NumberChipRow(
-            options = listOf(1, 2, 3, 4),
+            options = ProfileOptions.years,
             selected = draft.year,
             onSelect = { n -> onDraftChange { it.copy(year = n) } }
         )
@@ -513,17 +572,42 @@ private fun EditProfileForm(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
         )
-        NumberChipRow(
-            options = listOf(1, 2, 3, 4),
-            selected = draft.semester,
-            onSelect = { n -> onDraftChange { it.copy(semester = n) } }
+        ProfileOptions.semestersFor(draft.year).chunked(4).forEachIndexed { index, row ->
+            if (index > 0) Spacer(Modifier.height(4.dp))
+            NumberChipRow(
+                options = row,
+                selected = draft.semester,
+                onSelect = { n -> onDraftChange { it.copy(semester = n) } }
+            )
+        }
+
+        Text(
+            text = "Section",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
         )
-        Spacer(Modifier.height(4.dp))
-        NumberChipRow(
-            options = listOf(5, 6, 7, 8),
-            selected = draft.semester,
-            onSelect = { n -> onDraftChange { it.copy(semester = n) } }
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ProfileOptions.sections.forEach { section ->
+                FilterChip(
+                    selected = section == draft.section,
+                    onClick = {
+                        onDraftChange { it.copy(section = if (section == draft.section) "" else section) }
+                    },
+                    label = {
+                        Text(
+                            text = section,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
 
         Spacer(Modifier.height(8.dp))
 
@@ -533,9 +617,9 @@ private fun EditProfileForm(
                 val cleaned = v.filter { c -> c.isDigit() || c == '+' }.take(14)
                 onDraftChange { it.copy(phone = cleaned) }
             },
-            label = "Phone number",
+            label = "Phone number (optional)",
             icon = Icons.Default.Phone,
-            error = phoneError,
+            error = errors[EditField.Phone],
             keyboardType = KeyboardType.Phone,
             imeAction = ImeAction.Done,
             onDone = { focusManager.clearFocus() }

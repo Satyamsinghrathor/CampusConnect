@@ -6,71 +6,63 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
-import com.example.campusconnect.data.model.UserProfile
-import com.google.firebase.auth.FirebaseAuth
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
- * Stores the profile on the device, separately for each signed-in account.
- * Text fields go in SharedPreferences and the picture in the app's private files dir,
- * so no extra dependencies are needed. Call from a background thread.
+ * Handles the profile picture on the device. Profile details live in Firestore
+ * (see UserRepository); this class only deals with the picture:
+ * a photo the student picked wins, otherwise their Google account photo is used.
+ * Call from a background thread.
  */
 class ProfileRepository(context: Context) {
 
     private val appContext = context.applicationContext
-    private val auth = FirebaseAuth.getInstance()
 
-    private val uid: String get() = auth.currentUser?.uid ?: "guest"
+    private fun customPhotoFile(uid: String) = File(appContext.filesDir, "profile_$uid.jpg")
 
-    private fun prefs() = appContext.getSharedPreferences(
-        "campusconnect_profile_$uid",
-        Context.MODE_PRIVATE
-    )
+    private fun googlePhotoFile(uid: String) = File(appContext.cacheDir, "google_photo_$uid.jpg")
 
-    private fun photoFile() = File(appContext.filesDir, "profile_$uid.jpg")
-
-    fun load(): UserProfile {
-        val user = auth.currentUser
-        val email = user?.email.orEmpty()
-        val p = prefs()
-        val defaultName = user?.displayName?.takeIf { it.isNotBlank() }
-            ?: email.substringBefore('@')
-        return UserProfile(
-            name = p.getString(KEY_NAME, null) ?: defaultName,
-            email = email,
-            studentId = p.getString(KEY_STUDENT_ID, "").orEmpty(),
-            department = p.getString(KEY_DEPARTMENT, "").orEmpty(),
-            year = p.getInt(KEY_YEAR, 0),
-            semester = p.getInt(KEY_SEMESTER, 0),
-            phone = p.getString(KEY_PHONE, "").orEmpty()
-        )
-    }
-
-    fun loadPhoto(): Bitmap? {
-        val file = photoFile()
+    fun loadCustomPhoto(uid: String): Bitmap? {
+        val file = customPhotoFile(uid)
         return if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
     }
 
-    /** Throws [IOException] if anything could not be written. */
-    fun save(profile: UserProfile, photo: Bitmap?) {
-        if (photo != null) {
-            FileOutputStream(photoFile()).use { out ->
-                if (!photo.compress(Bitmap.CompressFormat.JPEG, 90, out)) {
-                    throw IOException("Could not write profile picture")
-                }
+    /** Throws [IOException] if the picture could not be written. */
+    fun saveCustomPhoto(uid: String, photo: Bitmap) {
+        FileOutputStream(customPhotoFile(uid)).use { out ->
+            if (!photo.compress(Bitmap.CompressFormat.JPEG, 90, out)) {
+                throw IOException("Could not write profile picture")
             }
         }
-        val saved = prefs().edit()
-            .putString(KEY_NAME, profile.name)
-            .putString(KEY_STUDENT_ID, profile.studentId)
-            .putString(KEY_DEPARTMENT, profile.department)
-            .putInt(KEY_YEAR, profile.year)
-            .putInt(KEY_SEMESTER, profile.semester)
-            .putString(KEY_PHONE, profile.phone)
-            .commit()
-        if (!saved) throw IOException("Could not save profile")
+    }
+
+    /** Returns the cached Google photo, downloading it once if needed. Null on any failure. */
+    fun loadGooglePhoto(uid: String, photoUrl: String): Bitmap? {
+        if (photoUrl.isBlank()) return null
+        val cache = googlePhotoFile(uid)
+        if (cache.exists()) {
+            BitmapFactory.decodeFile(cache.absolutePath)?.let { return it }
+        }
+        return try {
+            val connection = URL(photoUrl.replace("=s96-c", "=s256-c")).openConnection() as HttpURLConnection
+            connection.connectTimeout = 8_000
+            connection.readTimeout = 8_000
+            try {
+                val bitmap = connection.inputStream.use { BitmapFactory.decodeStream(it) }
+                if (bitmap != null) {
+                    FileOutputStream(cache).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+                }
+                bitmap
+            } finally {
+                connection.disconnect()
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /**
@@ -136,14 +128,5 @@ class ProfileRepository(context: Context) {
         } catch (e: Exception) {
             null
         }
-    }
-
-    private companion object {
-        const val KEY_NAME = "name"
-        const val KEY_STUDENT_ID = "student_id"
-        const val KEY_DEPARTMENT = "department"
-        const val KEY_YEAR = "year"
-        const val KEY_SEMESTER = "semester"
-        const val KEY_PHONE = "phone"
     }
 }

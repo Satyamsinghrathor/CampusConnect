@@ -25,4 +25,11 @@ sealed class NavRoutes {
 
     @Serializable
     object Register: NavRoutes()
+
+    /** Checks users/{uid} after authentication and routes to Dashboard or Profile Setup. */
+    @Serializable
+    object ProfileGate : NavRoutes()
+
+    @Serializable
+    object ProfileSetup : NavRoutes()
 }
