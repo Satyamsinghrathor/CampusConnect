@@ -51,6 +51,70 @@ class CollegeRepository(
         if (snapshot.exists()) snapshot.toDepartment() else null
     }
 
+    suspend fun getAllDepartments(): Result<List<Department>> = attempt {
+        db.collection(DEPARTMENTS).get().await()
+            .documents
+            .map { it.toDepartment() }
+            .sortedBy { it.name.lowercase() }
+    }
+
+    // --- Super admin management. Firestore rules only allow these for the super admin. ---
+
+    suspend fun addCollege(name: String, shortName: String): Result<Unit> = attempt {
+        val id = uniqueId(COLLEGES, slugify(shortName.ifBlank { name }, "college"))
+        db.collection(COLLEGES).document(id)
+            .set(mapOf("name" to name, "shortName" to shortName))
+            .await()
+    }
+
+    suspend fun addDepartment(collegeId: String, name: String): Result<Unit> = attempt {
+        val id = uniqueId(DEPARTMENTS, "${collegeId}_${slugify(name, "dept")}")
+        db.collection(DEPARTMENTS).document(id)
+            .set(mapOf("collegeId" to collegeId, "name" to name))
+            .await()
+    }
+
+    /** Refuses with [InUseException] while any user is registered under the department. */
+    suspend fun deleteDepartment(id: String): Result<Unit> = attempt {
+        if (isUsedByUsers("departmentId", id)) {
+            throw InUseException("People are registered under this department, so it can't be removed.")
+        }
+        db.collection(DEPARTMENTS).document(id).delete().await()
+    }
+
+    /**
+     * Removes a college and its departments. Refuses with [InUseException] while any user
+     * is registered under it, so no profile is left pointing at a college that's gone.
+     */
+    suspend fun deleteCollege(id: String): Result<Unit> = attempt {
+        if (isUsedByUsers("collegeId", id)) {
+            throw InUseException("People are registered under this college, so it can't be removed.")
+        }
+        val departments = db.collection(DEPARTMENTS).whereEqualTo("collegeId", id).get().await()
+        val batch = db.batch()
+        departments.documents.forEach { batch.delete(it.reference) }
+        batch.delete(db.collection(COLLEGES).document(id))
+        batch.commit().await()
+    }
+
+    private suspend fun isUsedByUsers(field: String, id: String): Boolean =
+        !db.collection("users").whereEqualTo(field, id).limit(1).get().await().isEmpty
+
+    private suspend fun uniqueId(collection: String, base: String): String {
+        var candidate = base
+        var suffix = 2
+        while (db.collection(collection).document(candidate).get().await().exists()) {
+            candidate = "${base}_$suffix"
+            suffix++
+        }
+        return candidate
+    }
+
+    private fun slugify(text: String, fallback: String): String {
+        val slug = text.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')
+        return slug.ifEmpty { fallback }.take(40)
+    }
+
     private suspend fun seed() {
         val batch = db.batch()
         batch.set(

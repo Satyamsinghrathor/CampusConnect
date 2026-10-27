@@ -7,6 +7,9 @@ import androidx.navigation.compose.rememberNavController
 import com.example.campusconnect.screens.homescreen.HomeScreen
 import com.example.campusconnect.screens.loginsignupscreen.LoginScreen
 import com.example.campusconnect.screens.loginsignupscreen.RegisterScreen
+import com.example.campusconnect.screens.approvalscreen.ApprovalsScreen
+import com.example.campusconnect.screens.collegescreen.ManageCollegesScreen
+import com.example.campusconnect.screens.profilesetupscreen.AwaitingApprovalScreen
 import com.example.campusconnect.screens.profilesetupscreen.ProfileGateScreen
 import com.example.campusconnect.screens.profilesetupscreen.ProfileSetupScreen
 
@@ -76,6 +79,13 @@ fun NavGraph(
                         }
                     }
                 },
+                onAwaitingApproval = {
+                    navController.navigate(NavRoutes.AwaitingApproval) {
+                        popUpTo<NavRoutes.ProfileGate> {
+                            inclusive = true
+                        }
+                    }
+                },
                 onSignedOut = {
                     navController.navigate(NavRoutes.Login) {
                         popUpTo(0) {
@@ -89,7 +99,8 @@ fun NavGraph(
         composable<NavRoutes.ProfileSetup> {
             ProfileSetupScreen(
                 onProfileSaved = {
-                    navController.navigate(NavRoutes.Home) {
+                    // The gate sends students to Home and everyone else to the approval screen.
+                    navController.navigate(NavRoutes.ProfileGate) {
                         popUpTo<NavRoutes.ProfileSetup> {
                             inclusive = true
                         }
@@ -103,6 +114,33 @@ fun NavGraph(
                     }
                 }
             )
+        }
+
+        composable<NavRoutes.AwaitingApproval> {
+            AwaitingApprovalScreen(
+                onApproved = {
+                    navController.navigate(NavRoutes.Home) {
+                        popUpTo<NavRoutes.AwaitingApproval> {
+                            inclusive = true
+                        }
+                    }
+                },
+                onSignOut = {
+                    navController.navigate(NavRoutes.Login) {
+                        popUpTo(0) {
+                            inclusive = true
+                        }
+                    }
+                }
+            )
+        }
+
+        composable<NavRoutes.Approvals> {
+            ApprovalsScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable<NavRoutes.ManageColleges> {
+            ManageCollegesScreen(onBack = { navController.popBackStack() })
         }
 
         composable<NavRoutes.Home> {

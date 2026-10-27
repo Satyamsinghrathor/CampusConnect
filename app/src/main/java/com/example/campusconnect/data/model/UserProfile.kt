@@ -1,15 +1,55 @@
 package com.example.campusconnect.data.model
 
+/** Who a user is in CampusConnect. [value] is what's stored in Firestore. */
+enum class UserRole(val value: String, val label: String) {
+    STUDENT("student", "Student"),
+    TEACHER("teacher", "Teacher"),
+    STAFF("staff", "Staff"),
+    HOD("hod", "Head of Department"),
+    ADMIN("admin", "College Admin"),
+    SUPER_ADMIN("superadmin", "Super Admin");
+
+    /** Students, teachers and HODs must pick a department; staff may; college admins have none. */
+    val usesDepartment: Boolean get() = this != ADMIN && this != SUPER_ADMIN
+    val requiresDepartment: Boolean get() = this == STUDENT || this == TEACHER || this == HOD
+
+    /** Can open the Pending Approvals screen. */
+    val canApprove: Boolean get() = this == ADMIN || this == SUPER_ADMIN
+
+    /** Who has to approve this role before the account becomes active. */
+    val approverDescription: String
+        get() = when (this) {
+            TEACHER, STAFF -> "your college admin"
+            HOD, ADMIN -> "the CampusConnect administrators"
+            else -> ""
+        }
+
+    companion object {
+        /** Roles a person can ask for when registering. Super Admin is only set in the console. */
+        val selectable: List<UserRole> = listOf(STUDENT, TEACHER, STAFF, HOD, ADMIN)
+
+        fun fromValue(value: String): UserRole = entries.firstOrNull { it.value == value } ?: STUDENT
+    }
+}
+
+object ApprovalStatus {
+    const val ACTIVE = "active"
+    const val PENDING = "pending"
+    const val REJECTED = "rejected"
+}
+
 /**
- * A student's profile, stored in Firestore at `users/{uid}`.
- * [year] and [semester] use 0 to mean "not set".
+ * A user's profile, stored in Firestore at `users/{uid}`.
+ * [year] and [semester] use 0 to mean "not set". Student-only fields are empty for
+ * other roles, and [employeeId] / [designation] are empty for students.
  */
 data class UserProfile(
     val uid: String = "",
     val name: String = "",
     val email: String = "",
     val photoUrl: String = "",
-    val role: String = "student",
+    val role: String = UserRole.STUDENT.value,
+    val status: String = ApprovalStatus.ACTIVE,
     val collegeId: String = "",
     val departmentId: String = "",
     val rollNumber: String = "",
@@ -17,8 +57,12 @@ data class UserProfile(
     val year: Int = 0,
     val semester: Int = 0,
     val section: String = "",
+    val employeeId: String = "",
+    val designation: String = "",
     val phone: String = ""
-)
+) {
+    val userRole: UserRole get() = UserRole.fromValue(role)
+}
 
 /** Choices and validation shared by the profile setup and profile screens. */
 object ProfileOptions {

@@ -28,7 +28,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DateRange
@@ -90,6 +92,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.example.campusconnect.data.model.ProfileOptions
 import com.example.campusconnect.data.model.UserProfile
+import com.example.campusconnect.data.model.UserRole
 import com.example.campusconnect.data.model.yearSemesterLabel
 import com.example.campusconnect.navigation.NavRoutes
 
@@ -190,10 +193,14 @@ fun ProfileScreen(
                 .padding(20.dp)
         ) {
             val profile = state.profile
-            val subtitle = listOf(state.departmentName, profile.yearSemesterLabel())
+            val subtitle = if (profile.userRole == UserRole.STUDENT) {
+                listOf(state.departmentName, profile.yearSemesterLabel())
+            } else {
+                listOf(profile.designation.ifBlank { profile.userRole.label }, state.departmentName)
+            }
                 .filter { it.isNotBlank() }
                 .joinToString(" · ")
-                .ifBlank { "Student" }
+                .ifBlank { profile.userRole.label }
 
             ProfileHeader(
                 name = profile.name.ifBlank { "Your name" },
@@ -251,6 +258,22 @@ fun ProfileScreen(
                     )
                 ) {
                     Column {
+                        if (profile.userRole.canApprove) {
+                            SettingsRow(
+                                icon = Icons.Default.CheckCircle,
+                                label = "Pending Approvals",
+                                onClick = { rootNavController.navigate(NavRoutes.Approvals) }
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                        }
+                        if (profile.userRole == UserRole.SUPER_ADMIN) {
+                            SettingsRow(
+                                icon = Icons.Default.Home,
+                                label = "Manage Colleges",
+                                onClick = { rootNavController.navigate(NavRoutes.ManageColleges) }
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                        }
                         SettingsRow(
                             icon = Icons.Default.Notifications,
                             label = "Notification Preferences",
@@ -423,6 +446,7 @@ private fun ProfileDetailsCard(
     collegeName: String,
     departmentName: String
 ) {
+    val role = profile.userRole
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
@@ -435,17 +459,28 @@ private fun ProfileDetailsCard(
             HorizontalDivider(color = divider)
             DetailRow(Icons.Default.Email, "Email", profile.email)
             HorizontalDivider(color = divider)
+            DetailRow(Icons.Default.AccountCircle, "Role", role.label)
+            HorizontalDivider(color = divider)
             DetailRow(Icons.Default.Home, "College", collegeName)
-            HorizontalDivider(color = divider)
-            DetailRow(Icons.Default.Info, "Department", departmentName)
-            HorizontalDivider(color = divider)
-            DetailRow(Icons.Default.AccountBox, "Roll number", profile.rollNumber)
-            HorizontalDivider(color = divider)
-            DetailRow(Icons.Default.DateRange, "Batch", profile.batch)
-            HorizontalDivider(color = divider)
-            DetailRow(Icons.Default.DateRange, "Year / Semester", profile.yearSemesterLabel())
-            HorizontalDivider(color = divider)
-            DetailRow(Icons.Default.Star, "Section", profile.section)
+            if (role.usesDepartment) {
+                HorizontalDivider(color = divider)
+                DetailRow(Icons.Default.Info, "Department", departmentName)
+            }
+            if (role == UserRole.STUDENT) {
+                HorizontalDivider(color = divider)
+                DetailRow(Icons.Default.AccountBox, "Roll number", profile.rollNumber)
+                HorizontalDivider(color = divider)
+                DetailRow(Icons.Default.DateRange, "Batch", profile.batch)
+                HorizontalDivider(color = divider)
+                DetailRow(Icons.Default.DateRange, "Year / Semester", profile.yearSemesterLabel())
+                HorizontalDivider(color = divider)
+                DetailRow(Icons.Default.Star, "Section", profile.section)
+            } else {
+                HorizontalDivider(color = divider)
+                DetailRow(Icons.Default.AccountBox, "Employee ID", profile.employeeId)
+                HorizontalDivider(color = divider)
+                DetailRow(Icons.Default.Star, "Designation", profile.designation)
+            }
             HorizontalDivider(color = divider)
             DetailRow(Icons.Default.Phone, "Phone number", profile.phone)
         }
@@ -523,14 +558,38 @@ private fun EditProfileForm(
             icon = Icons.Default.Home,
             enabled = false
         )
-        ProfileTextField(
-            value = departmentName,
-            onValueChange = {},
-            label = "Department",
-            icon = Icons.Default.Info,
-            enabled = false,
-            supportingText = "College and department were set during registration"
-        )
+        if (draft.userRole.usesDepartment) {
+            ProfileTextField(
+                value = departmentName,
+                onValueChange = {},
+                label = "Department",
+                icon = Icons.Default.Info,
+                enabled = false,
+                supportingText = "College and department were set during registration"
+            )
+        }
+        if (draft.userRole != UserRole.STUDENT) {
+            ProfileTextField(
+                value = draft.employeeId,
+                onValueChange = { v ->
+                    val cleaned = v.uppercase().filter { c -> c.isLetterOrDigit() || c == '-' || c == '/' }.take(20)
+                    onDraftChange { it.copy(employeeId = cleaned) }
+                },
+                label = "Employee ID",
+                icon = Icons.Default.AccountBox,
+                error = errors[EditField.EmployeeId],
+                capitalization = KeyboardCapitalization.Characters
+            )
+            ProfileTextField(
+                value = draft.designation,
+                onValueChange = { v -> onDraftChange { it.copy(designation = v.take(40)) } },
+                label = "Designation",
+                icon = Icons.Default.Star,
+                error = errors[EditField.Designation],
+                capitalization = KeyboardCapitalization.Words
+            )
+        }
+        if (draft.userRole == UserRole.STUDENT) {
         ProfileTextField(
             value = draft.rollNumber,
             onValueChange = { v ->
@@ -607,6 +666,8 @@ private fun EditProfileForm(
                     modifier = Modifier.weight(1f)
                 )
             }
+        }
+
         }
 
         Spacer(Modifier.height(8.dp))

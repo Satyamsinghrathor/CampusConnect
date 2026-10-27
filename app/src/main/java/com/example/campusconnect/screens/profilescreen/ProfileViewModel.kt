@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.campusconnect.data.model.ProfileOptions
 import com.example.campusconnect.data.model.UserProfile
+import com.example.campusconnect.data.model.UserRole
 import com.example.campusconnect.data.repository.CollegeRepository
 import com.example.campusconnect.data.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -18,7 +19,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class EditField { Name, RollNumber, Batch, Phone }
+enum class EditField { Name, RollNumber, Batch, EmployeeId, Designation, Phone }
 
 data class ProfileUiState(
     val isLoading: Boolean = true,
@@ -112,6 +113,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             if (updated.name != state.draft.name) errors = errors - EditField.Name
             if (updated.rollNumber != state.draft.rollNumber) errors = errors - EditField.RollNumber
             if (updated.batch != state.draft.batch) errors = errors - EditField.Batch
+            if (updated.employeeId != state.draft.employeeId) errors = errors - EditField.EmployeeId
+            if (updated.designation != state.draft.designation) errors = errors - EditField.Designation
             if (updated.phone != state.draft.phone) errors = errors - EditField.Phone
             state.copy(draft = updated, errors = errors)
         }
@@ -136,13 +139,21 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             name = current.draft.name.trim(),
             rollNumber = current.draft.rollNumber.trim(),
             batch = current.draft.batch.trim(),
+            employeeId = current.draft.employeeId.trim(),
+            designation = current.draft.designation.trim(),
             phone = current.draft.phone.trim()
         )
+        val isStudent = draft.userRole == UserRole.STUDENT
 
         val errors = buildMap<EditField, String> {
             if (draft.name.isEmpty()) put(EditField.Name, "Name is required")
-            if (draft.rollNumber.length < 3) put(EditField.RollNumber, "Enter your roll number")
-            if (!ProfileOptions.isValidBatch(draft.batch)) put(EditField.Batch, "Use the format 2023-2027")
+            if (isStudent) {
+                if (draft.rollNumber.length < 3) put(EditField.RollNumber, "Enter your roll number")
+                if (!ProfileOptions.isValidBatch(draft.batch)) put(EditField.Batch, "Use the format 2023-2027")
+            } else {
+                if (draft.employeeId.length < 2) put(EditField.EmployeeId, "Enter your employee ID")
+                if (draft.designation.length < 2) put(EditField.Designation, "Enter your designation")
+            }
             if (draft.phone.isNotEmpty() && !ProfileOptions.isValidPhone(draft.phone)) {
                 put(EditField.Phone, "Enter a valid phone number (10–13 digits)")
             }
@@ -151,7 +162,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             _uiState.update { it.copy(errors = errors) }
             return
         }
-        if (draft.year == 0 || draft.semester == 0 || draft.section.isEmpty()) {
+        if (isStudent && (draft.year == 0 || draft.semester == 0 || draft.section.isEmpty())) {
             _uiState.update { it.copy(message = "Choose your year, semester and section.") }
             return
         }

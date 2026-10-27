@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.campusconnect.data.model.ApprovalStatus
 import com.example.campusconnect.data.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +31,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-enum class GateStatus { Checking, ProfileComplete, ProfileMissing, SignedOut, Error }
+enum class GateStatus { Checking, ProfileComplete, ProfileMissing, AwaitingApproval, SignedOut, Error }
 
 class ProfileGateViewModel : ViewModel() {
 
@@ -44,7 +45,7 @@ class ProfileGateViewModel : ViewModel() {
         check()
     }
 
-    /** Looks up users/{uid}: a document means the profile is complete. */
+    /** Looks up users/{uid}: no document means setup is needed; a non-active status means approval is pending. */
     fun check() {
         val uid = auth.currentUser?.uid
         if (uid == null) {
@@ -55,10 +56,10 @@ class ProfileGateViewModel : ViewModel() {
             _status.value = GateStatus.Checking
             userRepository.getProfile(uid)
                 .onSuccess { profile ->
-                    _status.value = if (profile != null) {
-                        GateStatus.ProfileComplete
-                    } else {
-                        GateStatus.ProfileMissing
+                    _status.value = when {
+                        profile == null -> GateStatus.ProfileMissing
+                        profile.status == ApprovalStatus.ACTIVE -> GateStatus.ProfileComplete
+                        else -> GateStatus.AwaitingApproval
                     }
                 }
                 .onFailure { _status.value = GateStatus.Error }
@@ -73,12 +74,14 @@ class ProfileGateViewModel : ViewModel() {
 
 /**
  * Shown right after authentication. Decides where the user goes next:
- * Dashboard when users/{uid} exists, Profile Setup when it doesn't.
+ * Dashboard for an active profile, Profile Setup when there is none,
+ * and the approval-waiting screen for pending or rejected accounts.
  */
 @Composable
 fun ProfileGateScreen(
     onProfileComplete: () -> Unit,
     onProfileMissing: () -> Unit,
+    onAwaitingApproval: () -> Unit,
     onSignedOut: () -> Unit,
     viewModel: ProfileGateViewModel = viewModel()
 ) {
@@ -88,6 +91,7 @@ fun ProfileGateScreen(
         when (status) {
             GateStatus.ProfileComplete -> onProfileComplete()
             GateStatus.ProfileMissing -> onProfileMissing()
+            GateStatus.AwaitingApproval -> onAwaitingApproval()
             GateStatus.SignedOut -> onSignedOut()
             else -> Unit
         }

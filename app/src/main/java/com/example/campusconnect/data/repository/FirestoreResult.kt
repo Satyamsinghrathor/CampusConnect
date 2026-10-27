@@ -11,3 +11,6 @@ internal inline fun <T> attempt(block: () -> T): Result<T> =
     } catch (e: Exception) {
         Result.failure(e)
     }
+
+/** Thrown when something can't be deleted because users still point at it. */
+class InUseException(message: String) : Exception(message)

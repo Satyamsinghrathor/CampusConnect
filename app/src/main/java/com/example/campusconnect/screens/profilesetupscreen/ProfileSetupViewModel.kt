@@ -4,10 +4,12 @@ import android.app.Application
 import android.content.pm.ApplicationInfo
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.campusconnect.data.model.ApprovalStatus
 import com.example.campusconnect.data.model.College
 import com.example.campusconnect.data.model.Department
 import com.example.campusconnect.data.model.ProfileOptions
 import com.example.campusconnect.data.model.UserProfile
+import com.example.campusconnect.data.model.UserRole
 import com.example.campusconnect.data.repository.CollegeRepository
 import com.example.campusconnect.data.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -18,9 +20,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class SetupField { Name, College, Department, RollNumber, Batch, Year, Semester, Section }
+enum class SetupField { Name, College, Department, RollNumber, Batch, Year, Semester, Section, EmployeeId, Designation }
 
 data class ProfileSetupUiState(
+    val role: UserRole = UserRole.STUDENT,
     val name: String = "",
     val email: String = "",
     val photoUrl: String = "",
@@ -37,6 +40,8 @@ data class ProfileSetupUiState(
     val year: Int = 0,
     val semester: Int = 0,
     val section: String = "",
+    val employeeId: String = "",
+    val designation: String = "",
     val errors: Map<SetupField, String> = emptyMap(),
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
@@ -89,6 +94,27 @@ class ProfileSetupViewModel(application: Application) : AndroidViewModel(applica
                     }
                 }
         }
+    }
+
+    fun onRoleSelected(role: UserRole) {
+        _uiState.update {
+            it.copy(
+                role = role,
+                // College admins aren't tied to a department.
+                departmentId = if (role.usesDepartment) it.departmentId else "",
+                errors = emptyMap(),
+                saveError = null
+            )
+        }
+    }
+
+    fun onEmployeeIdChange(value: String) {
+        val cleaned = value.uppercase().filter { it.isLetterOrDigit() || it == '-' || it == '/' }.take(20)
+        _uiState.update { it.copy(employeeId = cleaned, errors = it.errors - SetupField.EmployeeId) }
+    }
+
+    fun onDesignationChange(value: String) {
+        _uiState.update { it.copy(designation = value.take(40), errors = it.errors - SetupField.Designation) }
     }
 
     fun onNameChange(value: String) {
@@ -179,35 +205,50 @@ class ProfileSetupViewModel(application: Application) : AndroidViewModel(applica
         }
 
         val name = state.name.trim()
+        val role = state.role
+        val isStudent = role == UserRole.STUDENT
+        val designation = state.designation.trim()
         val errors = buildMap<SetupField, String> {
             if (name.isEmpty()) put(SetupField.Name, "Name is required")
             if (state.collegeId.isEmpty()) put(SetupField.College, "Select your college")
-            if (state.departmentId.isEmpty()) put(SetupField.Department, "Select your department")
-            if (state.rollNumber.length < 3) put(SetupField.RollNumber, "Enter your roll number")
-            if (!ProfileOptions.isValidBatch(state.batch)) {
-                put(SetupField.Batch, "Use the format 2023-2027")
+            if (role.requiresDepartment && state.departmentId.isEmpty()) {
+                put(SetupField.Department, "Select your department")
             }
-            if (state.year == 0) put(SetupField.Year, "Select your year")
-            if (state.semester == 0) put(SetupField.Semester, "Select your semester")
-            if (state.section.isEmpty()) put(SetupField.Section, "Select your section")
+            if (isStudent) {
+                if (state.rollNumber.length < 3) put(SetupField.RollNumber, "Enter your roll number")
+                if (!ProfileOptions.isValidBatch(state.batch)) {
+                    put(SetupField.Batch, "Use the format 2023-2027")
+                }
+                if (state.year == 0) put(SetupField.Year, "Select your year")
+                if (state.semester == 0) put(SetupField.Semester, "Select your semester")
+                if (state.section.isEmpty()) put(SetupField.Section, "Select your section")
+            } else {
+                if (state.employeeId.length < 2) put(SetupField.EmployeeId, "Enter your employee ID")
+                if (designation.length < 2) put(SetupField.Designation, "Enter your designation")
+            }
         }
         if (errors.isNotEmpty()) {
             _uiState.update { it.copy(errors = errors, saveError = null) }
             return
         }
 
+        // Only keep the fields that belong to the chosen role.
         val profile = UserProfile(
             uid = user.uid,
             name = name,
             email = user.email.orEmpty().lowercase(),
             photoUrl = user.photoUrl?.toString().orEmpty(),
+            role = role.value,
+            status = if (isStudent) ApprovalStatus.ACTIVE else ApprovalStatus.PENDING,
             collegeId = state.collegeId,
-            departmentId = state.departmentId,
-            rollNumber = state.rollNumber,
-            batch = state.batch,
-            year = state.year,
-            semester = state.semester,
-            section = state.section
+            departmentId = if (role.usesDepartment) state.departmentId else "",
+            rollNumber = if (isStudent) state.rollNumber else "",
+            batch = if (isStudent) state.batch else "",
+            year = if (isStudent) state.year else 0,
+            semester = if (isStudent) state.semester else 0,
+            section = if (isStudent) state.section else "",
+            employeeId = if (isStudent) "" else state.employeeId,
+            designation = if (isStudent) "" else designation
         )
 
         viewModelScope.launch {

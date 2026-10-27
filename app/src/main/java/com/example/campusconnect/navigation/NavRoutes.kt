@@ -32,4 +32,16 @@ sealed class NavRoutes {
 
     @Serializable
     object ProfileSetup : NavRoutes()
+
+    /** Shown to teachers, staff, HODs and admins until they are approved. */
+    @Serializable
+    object AwaitingApproval : NavRoutes()
+
+    /** Pending sign-ups for college admins and the super admin to review. */
+    @Serializable
+    object Approvals : NavRoutes()
+
+    /** Super admin only: add and remove colleges and departments. */
+    @Serializable
+    object ManageColleges : NavRoutes()
 }

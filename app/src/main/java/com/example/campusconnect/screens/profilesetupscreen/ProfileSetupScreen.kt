@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Email
@@ -57,6 +58,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.campusconnect.data.model.ProfileOptions
+import com.example.campusconnect.data.model.UserRole
 
 /**
  * Step 2 of registration: collects college details after the first login
@@ -107,6 +109,23 @@ fun ProfileSetupScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
+            DropdownField(
+                label = "I am a",
+                value = state.role.label,
+                options = UserRole.selectable,
+                optionLabel = { it.label },
+                onSelected = viewModel::onRoleSelected,
+                icon = Icons.Default.AccountCircle,
+                placeholder = "Select role"
+            )
+
+            if (state.role != UserRole.STUDENT) {
+                ApprovalNote(
+                    "After you submit, ${state.role.approverDescription} has to approve your " +
+                        "${state.role.label} account before you can use the app."
+                )
+            }
+
             SetupTextField(
                 value = state.name,
                 onValueChange = viewModel::onNameChange,
@@ -140,82 +159,107 @@ fun ProfileSetupScreen(
                 emptyMessage = "No colleges available yet"
             )
 
-            DropdownField(
-                label = "Department",
-                value = state.departments.firstOrNull { it.id == state.departmentId }?.name.orEmpty(),
-                options = state.departments,
-                optionLabel = { it.name },
-                onSelected = viewModel::onDepartmentSelected,
-                icon = Icons.Default.Info,
-                enabled = state.collegeId.isNotEmpty() && !state.isLoadingDepartments,
-                placeholder = when {
-                    state.collegeId.isEmpty() -> "Select a college first"
-                    state.isLoadingDepartments -> "Loading departments…"
-                    else -> "Select department"
-                },
-                error = state.errors[SetupField.Department],
-                emptyMessage = "No departments for this college"
-            )
-
-            SetupTextField(
-                value = state.rollNumber,
-                onValueChange = viewModel::onRollNumberChange,
-                label = "Roll number",
-                icon = Icons.Default.AccountBox,
-                error = state.errors[SetupField.RollNumber],
-                capitalization = KeyboardCapitalization.Characters,
-                placeholder = "23CSE001"
-            )
-
-            SetupTextField(
-                value = state.batch,
-                onValueChange = viewModel::onBatchChange,
-                label = "Batch",
-                icon = Icons.Default.DateRange,
-                error = state.errors[SetupField.Batch],
-                keyboardType = KeyboardType.Number,
-                imeAction = ImeAction.Done,
-                onNext = { focusManager.clearFocus() },
-                placeholder = "2023-2027"
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(modifier = Modifier.weight(1f)) {
-                    DropdownField(
-                        label = "Year",
-                        value = if (state.year > 0) "${state.year}" else "",
-                        options = ProfileOptions.years,
-                        optionLabel = { "Year $it" },
-                        onSelected = viewModel::onYearSelected,
-                        icon = null,
-                        placeholder = "Select",
-                        error = state.errors[SetupField.Year]
-                    )
-                }
-                Box(modifier = Modifier.weight(1f)) {
-                    DropdownField(
-                        label = "Semester",
-                        value = if (state.semester > 0) "${state.semester}" else "",
-                        options = ProfileOptions.semestersFor(state.year),
-                        optionLabel = { "Semester $it" },
-                        onSelected = viewModel::onSemesterSelected,
-                        icon = null,
-                        placeholder = "Select",
-                        error = state.errors[SetupField.Semester]
-                    )
-                }
+            if (state.role.usesDepartment) {
+                DropdownField(
+                    label = if (state.role.requiresDepartment) "Department" else "Department (optional)",
+                    value = state.departments.firstOrNull { it.id == state.departmentId }?.name.orEmpty(),
+                    options = state.departments,
+                    optionLabel = { it.name },
+                    onSelected = viewModel::onDepartmentSelected,
+                    icon = Icons.Default.Info,
+                    enabled = state.collegeId.isNotEmpty() && !state.isLoadingDepartments,
+                    placeholder = when {
+                        state.collegeId.isEmpty() -> "Select a college first"
+                        state.isLoadingDepartments -> "Loading departments…"
+                        else -> "Select department"
+                    },
+                    error = state.errors[SetupField.Department],
+                    emptyMessage = "No departments for this college"
+                )
             }
 
-            DropdownField(
-                label = "Section",
-                value = state.section,
-                options = ProfileOptions.sections,
-                optionLabel = { "Section $it" },
-                onSelected = viewModel::onSectionSelected,
-                icon = Icons.Default.Star,
-                placeholder = "Select section",
-                error = state.errors[SetupField.Section]
-            )
+            if (state.role == UserRole.STUDENT) {
+                SetupTextField(
+                    value = state.rollNumber,
+                    onValueChange = viewModel::onRollNumberChange,
+                    label = "Roll number",
+                    icon = Icons.Default.AccountBox,
+                    error = state.errors[SetupField.RollNumber],
+                    capitalization = KeyboardCapitalization.Characters,
+                    placeholder = "23CSE001"
+                )
+
+                SetupTextField(
+                    value = state.batch,
+                    onValueChange = viewModel::onBatchChange,
+                    label = "Batch",
+                    icon = Icons.Default.DateRange,
+                    error = state.errors[SetupField.Batch],
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done,
+                    onNext = { focusManager.clearFocus() },
+                    placeholder = "2023-2027"
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        DropdownField(
+                            label = "Year",
+                            value = if (state.year > 0) "${state.year}" else "",
+                            options = ProfileOptions.years,
+                            optionLabel = { "Year $it" },
+                            onSelected = viewModel::onYearSelected,
+                            icon = null,
+                            placeholder = "Select",
+                            error = state.errors[SetupField.Year]
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        DropdownField(
+                            label = "Semester",
+                            value = if (state.semester > 0) "${state.semester}" else "",
+                            options = ProfileOptions.semestersFor(state.year),
+                            optionLabel = { "Semester $it" },
+                            onSelected = viewModel::onSemesterSelected,
+                            icon = null,
+                            placeholder = "Select",
+                            error = state.errors[SetupField.Semester]
+                        )
+                    }
+                }
+
+                DropdownField(
+                    label = "Section",
+                    value = state.section,
+                    options = ProfileOptions.sections,
+                    optionLabel = { "Section $it" },
+                    onSelected = viewModel::onSectionSelected,
+                    icon = Icons.Default.Star,
+                    placeholder = "Select section",
+                    error = state.errors[SetupField.Section]
+                )
+            } else {
+                SetupTextField(
+                    value = state.employeeId,
+                    onValueChange = viewModel::onEmployeeIdChange,
+                    label = "Employee ID",
+                    icon = Icons.Default.AccountBox,
+                    error = state.errors[SetupField.EmployeeId],
+                    capitalization = KeyboardCapitalization.Characters
+                )
+
+                SetupTextField(
+                    value = state.designation,
+                    onValueChange = viewModel::onDesignationChange,
+                    label = "Designation",
+                    icon = Icons.Default.Star,
+                    error = state.errors[SetupField.Designation],
+                    capitalization = KeyboardCapitalization.Words,
+                    imeAction = ImeAction.Done,
+                    onNext = { focusManager.clearFocus() },
+                    placeholder = "e.g. Assistant Professor"
+                )
+            }
 
             state.saveError?.let { message ->
                 Spacer(Modifier.height(4.dp))
@@ -242,7 +286,7 @@ fun ProfileSetupScreen(
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Text("Continue")
+                    Text(if (state.role == UserRole.STUDENT) "Continue" else "Submit for approval")
                 }
             }
 
@@ -416,5 +460,25 @@ private fun MessageBanner(
                 TextButton(onClick = onAction) { Text(actionLabel) }
             }
         }
+    }
+}
+
+@Composable
+private fun ApprovalNote(message: String) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.padding(12.dp)
+        )
     }
 }
