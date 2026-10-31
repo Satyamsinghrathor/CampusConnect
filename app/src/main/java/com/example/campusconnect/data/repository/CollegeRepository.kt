@@ -7,12 +7,14 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
 /**
- * Reads `colleges/{collegeId}` and `departments/{departmentId}` (each department
- * has a `collegeId` field pointing at its college).
+ * Reads and manages `colleges/{collegeId}` and `departments/{departmentId}`
+ * (each department has a `collegeId` field pointing at its college).
+ *
+ * Who may write what is enforced by the Firestore rules: the super admin can do everything,
+ * a college admin can add departments to their own college and edit names (never codes).
  *
  * When [seedSampleData] is true (debug builds only) and the colleges collection is
  * empty, a small sample set is written so the dropdowns have something to show.
- * Real data should be managed in the Firebase console.
  */
 class CollegeRepository(
     private val seedSampleData: Boolean = false,
@@ -39,6 +41,13 @@ class CollegeRepository(
             .sortedBy { it.name.lowercase() }
     }
 
+    suspend fun getAllDepartments(): Result<List<Department>> = attempt {
+        db.collection(DEPARTMENTS).get().await()
+            .documents
+            .map { it.toDepartment() }
+            .sortedBy { it.name.lowercase() }
+    }
+
     suspend fun getCollege(id: String): Result<College?> = attempt {
         if (id.isBlank()) return@attempt null
         val snapshot = db.collection(COLLEGES).document(id).get().await()
@@ -51,40 +60,42 @@ class CollegeRepository(
         if (snapshot.exists()) snapshot.toDepartment() else null
     }
 
-    suspend fun getAllDepartments(): Result<List<Department>> = attempt {
-        db.collection(DEPARTMENTS).get().await()
-            .documents
-            .map { it.toDepartment() }
-            .sortedBy { it.name.lowercase() }
-    }
+    // ---- Colleges ----
 
-    // --- Super admin management. Firestore rules only allow these for the super admin. ---
-
-    suspend fun addCollege(name: String, shortName: String): Result<Unit> = attempt {
-        val id = uniqueId(COLLEGES, slugify(shortName.ifBlank { name }, "college"))
-        db.collection(COLLEGES).document(id)
-            .set(mapOf("name" to name, "shortName" to shortName))
-            .await()
-    }
-
-    suspend fun addDepartment(collegeId: String, name: String): Result<Unit> = attempt {
-        val id = uniqueId(DEPARTMENTS, "${collegeId}_${slugify(name, "dept")}")
-        db.collection(DEPARTMENTS).document(id)
-            .set(mapOf("collegeId" to collegeId, "name" to name))
-            .await()
-    }
-
-    /** Refuses with [InUseException] while any user is registered under the department. */
-    suspend fun deleteDepartment(id: String): Result<Unit> = attempt {
-        if (isUsedByUsers("departmentId", id)) {
-            throw InUseException("People are registered under this department, so it can't be removed.")
+    /** Super admin only. */
+    suspend fun addCollege(code: String, name: String, shortName: String): Result<Unit> = attempt {
+        if (collegeCodeTaken(code, excludeId = null)) {
+            throw InvalidInputException("A college with the code $code already exists.")
         }
-        db.collection(DEPARTMENTS).document(id).delete().await()
+        val id = uniqueId(COLLEGES, slugify(code, "college"))
+        db.collection(COLLEGES).document(id)
+            .set(mapOf("code" to code, "name" to name, "shortName" to shortName))
+            .await()
     }
 
     /**
-     * Removes a college and its departments. Refuses with [InUseException] while any user
-     * is registered under it, so no profile is left pointing at a college that's gone.
+     * Updates a college's name and short name. Pass [newCode] only when the signed-in user is
+     * the super admin; college admins pass null and the rules reject any change to the code.
+     */
+    suspend fun updateCollege(
+        id: String,
+        name: String,
+        shortName: String,
+        newCode: String?
+    ): Result<Unit> = attempt {
+        val changes = hashMapOf<String, Any>("name" to name, "shortName" to shortName)
+        if (newCode != null) {
+            if (collegeCodeTaken(newCode, excludeId = id)) {
+                throw InvalidInputException("A college with the code $newCode already exists.")
+            }
+            changes["code"] = newCode
+        }
+        db.collection(COLLEGES).document(id).update(changes).await()
+    }
+
+    /**
+     * Removes a college and its departments (super admin only). Refuses with [InUseException]
+     * while any user is registered under it.
      */
     suspend fun deleteCollege(id: String): Result<Unit> = attempt {
         if (isUsedByUsers("collegeId", id)) {
@@ -96,6 +107,71 @@ class CollegeRepository(
         batch.delete(db.collection(COLLEGES).document(id))
         batch.commit().await()
     }
+
+    // ---- Departments ----
+
+    /** Super admin, or the admin of [collegeId]. */
+    suspend fun addDepartment(
+        collegeId: String,
+        code: String,
+        name: String,
+        shortName: String
+    ): Result<Unit> = attempt {
+        if (departmentCodeTaken(collegeId, code, excludeId = null)) {
+            throw InvalidInputException("This college already has a department with the code $code.")
+        }
+        val id = uniqueId(DEPARTMENTS, "${collegeId}_${slugify(code, "dept")}")
+        db.collection(DEPARTMENTS).document(id)
+            .set(
+                mapOf(
+                    "collegeId" to collegeId,
+                    "code" to code,
+                    "name" to name,
+                    "shortName" to shortName
+                )
+            )
+            .await()
+    }
+
+    /** Pass [newCode] only for the super admin, as with [updateCollege]. */
+    suspend fun updateDepartment(
+        department: Department,
+        name: String,
+        shortName: String,
+        newCode: String?
+    ): Result<Unit> = attempt {
+        val changes = hashMapOf<String, Any>("name" to name, "shortName" to shortName)
+        if (newCode != null) {
+            if (departmentCodeTaken(department.collegeId, newCode, excludeId = department.id)) {
+                throw InvalidInputException(
+                    "This college already has a department with the code $newCode."
+                )
+            }
+            changes["code"] = newCode
+        }
+        db.collection(DEPARTMENTS).document(department.id).update(changes).await()
+    }
+
+    /** Super admin only. Refuses with [InUseException] while any user is registered under it. */
+    suspend fun deleteDepartment(id: String): Result<Unit> = attempt {
+        if (isUsedByUsers("departmentId", id)) {
+            throw InUseException("People are registered under this department, so it can't be removed.")
+        }
+        db.collection(DEPARTMENTS).document(id).delete().await()
+    }
+
+    // ---- Helpers ----
+
+    private suspend fun collegeCodeTaken(code: String, excludeId: String?): Boolean =
+        db.collection(COLLEGES).whereEqualTo("code", code).get().await()
+            .documents.any { it.id != excludeId }
+
+    private suspend fun departmentCodeTaken(collegeId: String, code: String, excludeId: String?): Boolean =
+        db.collection(DEPARTMENTS)
+            .whereEqualTo("collegeId", collegeId)
+            .whereEqualTo("code", code)
+            .get().await()
+            .documents.any { it.id != excludeId }
 
     private suspend fun isUsedByUsers(field: String, id: String): Boolean =
         !db.collection("users").whereEqualTo(field, id).limit(1).get().await().isEmpty
@@ -120,6 +196,7 @@ class CollegeRepository(
         batch.set(
             db.collection(COLLEGES).document(SAMPLE_COLLEGE_ID),
             mapOf(
+                "code" to "PTU",
                 "name" to "Puducherry Technological University",
                 "shortName" to "PTU"
             )
@@ -129,7 +206,9 @@ class CollegeRepository(
                 db.collection(DEPARTMENTS).document("${SAMPLE_COLLEGE_ID}_$slug"),
                 mapOf(
                     "collegeId" to SAMPLE_COLLEGE_ID,
-                    "name" to name
+                    "code" to slug.uppercase(),
+                    "name" to name,
+                    "shortName" to slug.uppercase()
                 )
             )
         }
@@ -138,6 +217,7 @@ class CollegeRepository(
 
     private fun DocumentSnapshot.toCollege() = College(
         id = id,
+        code = getString("code").orEmpty(),
         name = getString("name").orEmpty(),
         shortName = getString("shortName").orEmpty()
     )
@@ -145,7 +225,9 @@ class CollegeRepository(
     private fun DocumentSnapshot.toDepartment() = Department(
         id = id,
         collegeId = getString("collegeId").orEmpty(),
-        name = getString("name").orEmpty()
+        code = getString("code").orEmpty(),
+        name = getString("name").orEmpty(),
+        shortName = getString("shortName").orEmpty()
     )
 
     private companion object {

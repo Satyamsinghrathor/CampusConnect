@@ -266,10 +266,10 @@ fun ProfileScreen(
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                         }
-                        if (profile.userRole == UserRole.SUPER_ADMIN) {
+                        if (profile.userRole == UserRole.SUPER_ADMIN || profile.userRole == UserRole.ADMIN) {
                             SettingsRow(
                                 icon = Icons.Default.Home,
-                                label = "Manage Colleges",
+                                label = if (profile.userRole == UserRole.SUPER_ADMIN) "Manage Colleges" else "Manage My College",
                                 onClick = { rootNavController.navigate(NavRoutes.ManageColleges) }
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
@@ -590,83 +590,83 @@ private fun EditProfileForm(
             )
         }
         if (draft.userRole == UserRole.STUDENT) {
-        ProfileTextField(
-            value = draft.rollNumber,
-            onValueChange = { v ->
-                val cleaned = v.uppercase().filter { c -> c.isLetterOrDigit() || c == '-' || c == '/' }.take(20)
-                onDraftChange { it.copy(rollNumber = cleaned) }
-            },
-            label = "Roll number",
-            icon = Icons.Default.AccountBox,
-            error = errors[EditField.RollNumber],
-            capitalization = KeyboardCapitalization.Characters
-        )
-        ProfileTextField(
-            value = draft.batch,
-            onValueChange = { v ->
-                val cleaned = v.filter { c -> c.isDigit() || c == '-' }.take(9)
-                onDraftChange { it.copy(batch = cleaned) }
-            },
-            label = "Batch (e.g. 2023-2027)",
-            icon = Icons.Default.DateRange,
-            error = errors[EditField.Batch],
-            keyboardType = KeyboardType.Number
-        )
-
-        Text(
-            text = "Year",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-        )
-        NumberChipRow(
-            options = ProfileOptions.years,
-            selected = draft.year,
-            onSelect = { n -> onDraftChange { it.copy(year = n) } }
-        )
-
-        Text(
-            text = "Semester",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-        )
-        ProfileOptions.semestersFor(draft.year).chunked(4).forEachIndexed { index, row ->
-            if (index > 0) Spacer(Modifier.height(4.dp))
-            NumberChipRow(
-                options = row,
-                selected = draft.semester,
-                onSelect = { n -> onDraftChange { it.copy(semester = n) } }
+            ProfileTextField(
+                value = draft.rollNumber,
+                onValueChange = { v ->
+                    val cleaned = v.uppercase().filter { c -> c.isLetterOrDigit() || c == '-' || c == '/' }.take(20)
+                    onDraftChange { it.copy(rollNumber = cleaned) }
+                },
+                label = "Roll number",
+                icon = Icons.Default.AccountBox,
+                error = errors[EditField.RollNumber],
+                capitalization = KeyboardCapitalization.Characters
             )
-        }
+            ProfileTextField(
+                value = draft.batch,
+                onValueChange = { v ->
+                    val cleaned = v.filter { c -> c.isDigit() || c == '-' }.take(9)
+                    onDraftChange { it.copy(batch = cleaned) }
+                },
+                label = "Batch (e.g. 2023-2027)",
+                icon = Icons.Default.DateRange,
+                error = errors[EditField.Batch],
+                keyboardType = KeyboardType.Number
+            )
 
-        Text(
-            text = "Section",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            ProfileOptions.sections.forEach { section ->
-                FilterChip(
-                    selected = section == draft.section,
-                    onClick = {
-                        onDraftChange { it.copy(section = if (section == draft.section) "" else section) }
-                    },
-                    label = {
-                        Text(
-                            text = section,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    },
-                    modifier = Modifier.weight(1f)
+            Text(
+                text = "Year",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+            )
+            NumberChipRow(
+                options = ProfileOptions.years,
+                selected = draft.year,
+                onSelect = { n -> onDraftChange { it.copy(year = n) } }
+            )
+
+            Text(
+                text = "Semester",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+            )
+            ProfileOptions.semestersFor(draft.year).chunked(4).forEachIndexed { index, row ->
+                if (index > 0) Spacer(Modifier.height(4.dp))
+                NumberChipRow(
+                    options = row,
+                    selected = draft.semester,
+                    onSelect = { n -> onDraftChange { it.copy(semester = n) } }
                 )
             }
-        }
+
+            Text(
+                text = "Section",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ProfileOptions.sections.forEach { section ->
+                    FilterChip(
+                        selected = section == draft.section,
+                        onClick = {
+                            onDraftChange { it.copy(section = if (section == draft.section) "" else section) }
+                        },
+                        label = {
+                            Text(
+                                text = section,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
 
         }
 

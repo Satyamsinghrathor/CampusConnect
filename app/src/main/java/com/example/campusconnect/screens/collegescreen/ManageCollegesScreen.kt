@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -67,6 +68,8 @@ fun ManageCollegesScreen(
 
     var showAddCollege by remember { mutableStateOf(false) }
     var addDepartmentFor by remember { mutableStateOf<College?>(null) }
+    var collegeToEdit by remember { mutableStateOf<College?>(null) }
+    var departmentToEdit by remember { mutableStateOf<Department?>(null) }
     var collegeToDelete by remember { mutableStateOf<College?>(null) }
     var departmentToDelete by remember { mutableStateOf<Department?>(null) }
 
@@ -80,14 +83,14 @@ fun ManageCollegesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Manage Colleges") },
+                title = { Text(if (state.isSuperAdmin) "Manage Colleges" else "Manage College") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    if (state.hasAccess && state.error == null && !state.isLoading) {
+                    if (state.isSuperAdmin && state.hasAccess && state.error == null && !state.isLoading) {
                         IconButton(onClick = { showAddCollege = true }) {
                             Icon(Icons.Default.Add, contentDescription = "Add college")
                         }
@@ -109,7 +112,7 @@ fun ManageCollegesScreen(
 
             !state.hasAccess -> CenteredBox(innerPadding) {
                 Text(
-                    text = "Only the super admin can manage colleges.",
+                    text = "Only college admins and the super admin can manage colleges.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -141,12 +144,16 @@ fun ManageCollegesScreen(
                     CenteredBox(PaddingValues(0.dp)) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "No colleges yet",
+                                text = if (state.isSuperAdmin) "No colleges yet" else "Your college isn't set up yet",
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 32.dp)
                             )
-                            Spacer(Modifier.height(12.dp))
-                            Button(onClick = { showAddCollege = true }) { Text("Add college") }
+                            if (state.isSuperAdmin) {
+                                Spacer(Modifier.height(12.dp))
+                                Button(onClick = { showAddCollege = true }) { Text("Add college") }
+                            }
                         }
                     }
                 } else {
@@ -158,8 +165,11 @@ fun ManageCollegesScreen(
                             CollegeCard(
                                 item = item,
                                 enabled = !state.isWorking,
+                                isSuperAdmin = state.isSuperAdmin,
+                                onEditCollege = { collegeToEdit = item.college },
                                 onAddDepartment = { addDepartmentFor = item.college },
                                 onDeleteCollege = { collegeToDelete = item.college },
+                                onEditDepartment = { departmentToEdit = it },
                                 onDeleteDepartment = { departmentToDelete = it }
                             )
                         }
@@ -170,22 +180,77 @@ fun ManageCollegesScreen(
     }
 
     if (showAddCollege) {
-        AddCollegeDialog(
+        CodeNameDialog(
+            title = "Add college",
+            subtitle = null,
+            codeLabel = "College code",
+            nameLabel = "College name",
+            initialCode = "",
+            initialName = "",
+            initialShortName = "",
+            codeEditable = true,
+            confirmLabel = "Add",
             onDismiss = { showAddCollege = false },
-            onConfirm = { name, shortName ->
+            onConfirm = { code, name, shortName ->
                 showAddCollege = false
-                viewModel.addCollege(name, shortName)
+                viewModel.addCollege(code, name, shortName)
+            }
+        )
+    }
+
+    collegeToEdit?.let { college ->
+        CodeNameDialog(
+            title = "Edit college",
+            subtitle = if (state.isSuperAdmin) null else "Only the super admin can change the college code.",
+            codeLabel = "College code",
+            nameLabel = "College name",
+            initialCode = college.code,
+            initialName = college.name,
+            initialShortName = college.shortName,
+            codeEditable = state.isSuperAdmin,
+            confirmLabel = "Save",
+            onDismiss = { collegeToEdit = null },
+            onConfirm = { code, name, shortName ->
+                collegeToEdit = null
+                viewModel.updateCollege(college, code, name, shortName)
             }
         )
     }
 
     addDepartmentFor?.let { college ->
-        AddDepartmentDialog(
-            collegeName = college.name,
+        CodeNameDialog(
+            title = "Add department",
+            subtitle = college.name,
+            codeLabel = "Department code",
+            nameLabel = "Department name",
+            initialCode = "",
+            initialName = "",
+            initialShortName = "",
+            codeEditable = true,
+            confirmLabel = "Add",
             onDismiss = { addDepartmentFor = null },
-            onConfirm = { name ->
+            onConfirm = { code, name, shortName ->
                 addDepartmentFor = null
-                viewModel.addDepartment(college, name)
+                viewModel.addDepartment(college, code, name, shortName)
+            }
+        )
+    }
+
+    departmentToEdit?.let { department ->
+        CodeNameDialog(
+            title = "Edit department",
+            subtitle = if (state.isSuperAdmin) null else "Only the super admin can change the department code.",
+            codeLabel = "Department code",
+            nameLabel = "Department name",
+            initialCode = department.code,
+            initialName = department.name,
+            initialShortName = department.shortName,
+            codeEditable = state.isSuperAdmin,
+            confirmLabel = "Save",
+            onDismiss = { departmentToEdit = null },
+            onConfirm = { code, name, shortName ->
+                departmentToEdit = null
+                viewModel.updateDepartment(department, code, name, shortName)
             }
         )
     }
@@ -197,7 +262,7 @@ fun ManageCollegesScreen(
             text = {
                 Text(
                     "This also removes all of its departments. It can't be removed while " +
-                        "anyone is registered under it."
+                            "anyone is registered under it."
                 )
             },
             confirmButton = {
@@ -250,8 +315,11 @@ private fun CenteredBox(innerPadding: PaddingValues, content: @Composable () -> 
 private fun CollegeCard(
     item: CollegeWithDepartments,
     enabled: Boolean,
+    isSuperAdmin: Boolean,
+    onEditCollege: () -> Unit,
     onAddDepartment: () -> Unit,
     onDeleteCollege: () -> Unit,
+    onEditDepartment: (Department) -> Unit,
     onDeleteDepartment: (Department) -> Unit
 ) {
     Card(
@@ -269,20 +337,29 @@ private fun CollegeCard(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    if (item.college.shortName.isNotBlank()) {
-                        Text(
-                            text = item.college.shortName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Text(
+                        text = listOf(
+                            item.college.code.ifBlank { "Code not set" },
+                            item.college.shortName
+                        ).filter { it.isNotBlank() }.joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = onEditCollege, enabled = enabled) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit ${item.college.name}"
+                    )
+                }
+                if (isSuperAdmin) {
+                    IconButton(onClick = onDeleteCollege, enabled = enabled) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Remove ${item.college.name}",
+                            tint = MaterialTheme.colorScheme.error
                         )
                     }
-                }
-                IconButton(onClick = onDeleteCollege, enabled = enabled) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Remove ${item.college.name}",
-                        tint = MaterialTheme.colorScheme.error
-                    )
                 }
             }
 
@@ -301,19 +378,38 @@ private fun CollegeCard(
             } else {
                 item.departments.forEach { department ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = department.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
+                        Column(
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(vertical = 8.dp)
-                        )
-                        IconButton(onClick = { onDeleteDepartment(department) }, enabled = enabled) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Remove ${department.name}"
+                        ) {
+                            Text(
+                                text = department.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
+                            Text(
+                                text = listOf(
+                                    department.code.ifBlank { "Code not set" },
+                                    department.shortName
+                                ).filter { it.isNotBlank() }.joinToString(" · "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(onClick = { onEditDepartment(department) }, enabled = enabled) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit ${department.name}"
+                            )
+                        }
+                        if (isSuperAdmin) {
+                            IconButton(onClick = { onDeleteDepartment(department) }, enabled = enabled) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Remove ${department.name}"
+                                )
+                            }
                         }
                     }
                 }
@@ -328,24 +424,65 @@ private fun CollegeCard(
     }
 }
 
+/**
+ * Shared form for colleges and departments: a code, a name and an optional short name.
+ * When [codeEditable] is false the code is shown but locked.
+ */
 @Composable
-private fun AddCollegeDialog(
+private fun CodeNameDialog(
+    title: String,
+    subtitle: String?,
+    codeLabel: String,
+    nameLabel: String,
+    initialCode: String,
+    initialName: String,
+    initialShortName: String,
+    codeEditable: Boolean,
+    confirmLabel: String,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, shortName: String) -> Unit
+    onConfirm: (code: String, name: String, shortName: String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var shortName by remember { mutableStateOf("") }
-    val valid = name.trim().length >= 2
+    var code by remember { mutableStateOf(initialCode) }
+    var name by remember { mutableStateOf(initialName) }
+    var shortName by remember { mutableStateOf(initialShortName) }
+
+    val codeValid = !codeEditable || code.length in 2..20
+    val valid = codeValid && name.trim().length >= 2
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add college") },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { v ->
+                        code = v.uppercase().filter { c -> c.isLetterOrDigit() || c == '-' || c == '_' }.take(20)
+                    },
+                    label = { Text(codeLabel) },
+                    singleLine = true,
+                    enabled = codeEditable,
+                    supportingText = if (codeEditable) {
+                        { Text("2–20 letters or digits. Must be unique.") }
+                    } else {
+                        null
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Characters,
+                        imeAction = ImeAction.Next
+                    )
+                )
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(80) },
-                    label = { Text("College name") },
+                    label = { Text(nameLabel) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Words,
@@ -365,47 +502,9 @@ private fun AddCollegeDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name, shortName) }, enabled = valid) { Text("Add") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
-
-@Composable
-private fun AddDepartmentDialog(
-    collegeName: String,
-    onDismiss: () -> Unit,
-    onConfirm: (name: String) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    val valid = name.trim().length >= 2
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add department") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = collegeName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it.take(80) },
-                    label = { Text("Department name") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Words,
-                        imeAction = ImeAction.Done
-                    )
-                )
+            TextButton(onClick = { onConfirm(code, name, shortName) }, enabled = valid) {
+                Text(confirmLabel)
             }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(name) }, enabled = valid) { Text("Add") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

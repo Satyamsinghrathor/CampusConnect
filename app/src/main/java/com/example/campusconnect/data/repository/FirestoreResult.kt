@@ -14,3 +14,6 @@ internal inline fun <T> attempt(block: () -> T): Result<T> =
 
 /** Thrown when something can't be deleted because users still point at it. */
 class InUseException(message: String) : Exception(message)
+
+/** Thrown when the input is rejected, e.g. a code that's already taken. */
+class InvalidInputException(message: String) : Exception(message)
