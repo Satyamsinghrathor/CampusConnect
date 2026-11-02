@@ -79,6 +79,7 @@ import androidx.navigation.NavHostController
 import com.example.campusconnect.data.model.CampusEvent
 import com.example.campusconnect.data.model.EventAudience
 import com.example.campusconnect.data.model.UserRole
+import com.example.campusconnect.navigation.NavRoutes
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -222,6 +223,9 @@ fun EventScreen(navController: NavHostController) {
                                 EventCard(
                                     item = item,
                                     canManage = state.canPost && item.event.createdBy == state.myUid,
+                                    onClick = {
+                                        navController.navigate(NavRoutes.EventDetail(item.event.id))
+                                    },
                                     onOpenMap = {
                                         if (!MapLinks.open(context, item.event, state.collegeName)) {
                                             scope.launch {
@@ -277,27 +281,24 @@ fun EventScreen(navController: NavHostController) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EventCard(
     item: EventItem,
     canManage: Boolean,
+    onClick: () -> Unit,
     onOpenMap: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     val event = item.event
-    val audienceRoles = EventAudience.roles.filter { it.value in event.audienceRoles }
-    val who = if (audienceRoles.size == EventAudience.roles.size) {
-        "Everyone"
-    } else {
-        audienceRoles.joinToString(", ") { EventAudience.pluralLabel(it) }
-    }
-    val audience = "$who · ${item.departmentName.ifBlank { "Whole college" }}"
+    val audience = audienceSummary(event, item.departmentName)
     val postedBy = listOf(event.createdByName, UserRole.fromValue(event.createdByRole).label)
         .filter { it.isNotBlank() }
         .joinToString(" · ")
 
     Card(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
@@ -716,7 +717,7 @@ private fun defaultStartMillis(): Long =
     }.timeInMillis
 
 /** The date picker works in UTC, so turn a local date into the matching UTC midnight. */
-private fun toPickerMillis(millis: Long): Long {
+internal fun toPickerMillis(millis: Long): Long {
     val local = Calendar.getInstance().apply { timeInMillis = millis }
     return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
         clear()
@@ -725,7 +726,7 @@ private fun toPickerMillis(millis: Long): Long {
 }
 
 /** Keeps the time of day of [millis] and swaps in the date the picker returned. */
-private fun withPickedDate(millis: Long, pickerMillis: Long): Long {
+internal fun withPickedDate(millis: Long, pickerMillis: Long): Long {
     val picked = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = pickerMillis }
     return Calendar.getInstance().apply {
         timeInMillis = millis
@@ -742,10 +743,24 @@ private fun withTime(millis: Long, hour: Int, minute: Int): Long =
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
 
-private fun formatDate(millis: Long): String =
+internal fun formatDate(millis: Long): String =
     SimpleDateFormat("EEE, d MMM yyyy", Locale.getDefault()).format(Date(millis))
 
-private fun formatTime(millis: Long): String =
+internal fun formatTime(millis: Long): String =
     SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(millis))
 
-private fun formatDateTime(millis: Long): String = "${formatDate(millis)} · ${formatTime(millis)}"
+internal fun formatDateTime(millis: Long): String = "${formatDate(millis)} · ${formatTime(millis)}"
+
+internal fun formatFullDate(millis: Long): String =
+    SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault()).format(Date(millis))
+
+/** e.g. "Students, Teachers · Computer Science" or "Everyone · Whole college". */
+internal fun audienceSummary(event: CampusEvent, departmentName: String): String {
+    val roles = EventAudience.roles.filter { it.value in event.audienceRoles }
+    val who = if (roles.size == EventAudience.roles.size) {
+        "Everyone"
+    } else {
+        roles.joinToString(", ") { EventAudience.pluralLabel(it) }
+    }
+    return "$who · ${departmentName.ifBlank { "Whole college" }}"
+}

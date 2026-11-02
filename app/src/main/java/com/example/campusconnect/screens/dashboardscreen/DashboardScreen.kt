@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -24,7 +25,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.example.campusconnect.navigation.NavRoutes
 import com.example.campusconnect.screens.eventscreen.EventsViewModel
+import com.example.campusconnect.screens.noticescreen.NoticesViewModel
+import com.example.campusconnect.screens.noticescreen.relativeTime
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -36,6 +40,17 @@ fun DashboardScreen(navController: NavHostController) {
     val eventsState by eventsViewModel.uiState.collectAsState()
     val dateFormat = remember { SimpleDateFormat("d MMM yyyy", Locale.getDefault()) }
     val upcomingEvents = eventsState.upcoming.take(5)
+
+    val noticesViewModel: NoticesViewModel = viewModel()
+    val noticesState by noticesViewModel.uiState.collectAsState()
+    // Important notices come first, so this is the pinned notice or else the newest one.
+    val latestNotice = noticesState.active.firstOrNull()?.notice
+
+    // Pick up events and notices added or changed since this screen was last shown.
+    LaunchedEffect(Unit) {
+        eventsViewModel.refresh()
+        noticesViewModel.refresh()
+    }
 
     val greeting = remember {
         when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
@@ -67,10 +82,20 @@ fun DashboardScreen(navController: NavHostController) {
 
             Spacer(Modifier.height(24.dp))
 
-            LatestNotice(
-                title = "Internal Test Next Week",
-                date = "Posted 2 days ago"
-            )
+            if (latestNotice != null) {
+                LatestNotice(
+                    title = latestNotice.title,
+                    date = "Posted ${relativeTime(latestNotice.createdAtMillis)}",
+                    onClick = {
+                        navController.navigate(NavRoutes.NoticeDetail(latestNotice.id))
+                    }
+                )
+            } else {
+                LatestNotice(
+                    title = if (noticesState.isLoading) "Loading notices…" else "No notices right now",
+                    date = ""
+                )
+            }
 
             Spacer(Modifier.height(28.dp))
 
@@ -91,7 +116,6 @@ fun DashboardScreen(navController: NavHostController) {
                 )
             } else {
                 LazyRow(
-
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
@@ -99,7 +123,10 @@ fun DashboardScreen(navController: NavHostController) {
                         UpcomingEventCard(
                             eventName = item.event.title,
                             date = dateFormat.format(Date(item.event.startAtMillis)),
-                            modifier = Modifier
+                            modifier = Modifier,
+                            onClick = {
+                                navController.navigate(NavRoutes.EventDetail(item.event.id))
+                            }
                         )
                     }
                 }

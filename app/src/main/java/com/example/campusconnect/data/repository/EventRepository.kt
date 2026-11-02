@@ -24,6 +24,12 @@ class EventRepository(
             .sortedBy { it.startAtMillis }
     }
 
+    /** Returns null (not a failure) when the event doesn't exist any more. */
+    suspend fun getEvent(id: String): Result<CampusEvent?> = attempt {
+        val snapshot = events.document(id).get().await()
+        if (snapshot.exists()) snapshot.toEvent() else null
+    }
+
     suspend fun createEvent(event: CampusEvent): Result<Unit> = attempt {
         val data = hashMapOf<String, Any>(
             "title" to event.title,
@@ -78,7 +84,8 @@ class EventRepository(
             ?: EventAudience.allRoleValues,
         createdBy = getString("createdBy").orEmpty(),
         createdByName = getString("createdByName").orEmpty(),
-        createdByRole = getString("createdByRole").orEmpty()
+        createdByRole = getString("createdByRole").orEmpty(),
+        createdAtMillis = getTimestamp("createdAt")?.toDate()?.time ?: 0L
     )
 
     private companion object {

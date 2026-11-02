@@ -14,8 +14,16 @@ sealed class NavRoutes {
     @Serializable
     object Event : NavRoutes()
 
+    /** Full details of one event, opened by tapping an event card. */
+    @Serializable
+    data class EventDetail(val eventId: String) : NavRoutes()
+
     @Serializable
     object Notice : NavRoutes()
+
+    /** Full details of one notice, opened by tapping a notice card. */
+    @Serializable
+    data class NoticeDetail(val noticeId: String) : NavRoutes()
 
     @Serializable
     object Dashboard : NavRoutes()

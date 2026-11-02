@@ -34,5 +34,7 @@ data class CampusEvent(
     val audienceRoles: List<String> = EventAudience.allRoleValues,
     val createdBy: String = "",
     val createdByName: String = "",
-    val createdByRole: String = ""
+    val createdByRole: String = "",
+    /** When the event was posted; 0 if the server hasn't stamped it yet. */
+    val createdAtMillis: Long = 0L
 )
